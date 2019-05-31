@@ -7,5 +7,5 @@ services:
     restart: unless-stopped
     tty: true
     ports:
-      - 20700:20700
-      - 20710:20710
+      - 20700:20700/udp
+      - 20710:20710/udp
