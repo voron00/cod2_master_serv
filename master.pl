@@ -13,7 +13,7 @@ my $msg;
 my $maxlen = 1024;
 
 my $debug         = 0;
-my $guid_hash_key = 'CD-KEY';
+my $guid_hash_key = '';    # Change this if you want guids
 
 my %server_list;
 my %auth_list;
@@ -150,7 +150,7 @@ sub auth_server {
 		elsif ($msg =~ /^\xFF\xFF\xFF\xFFgetIpAuthorize\s(-?\d+)\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s(\w+)\s(\d)$/) {
 			my $guid = 0;
 
-			if (defined($auth_list{$2})) {
+			if (length($guid_hash_key) and defined($auth_list{$2})) {
 				$guid = xor_encode_int($auth_list{$2}, $guid_hash_key);
 				$guid = substr($guid, -6);
 			}
@@ -214,7 +214,6 @@ sub send_server_list {
 	my $max_per_packet   = 20;
 	my $per_packet_count = 0;
 	my $data             = $header . $delimiter;
-	my $i;
 	my $server_protocol;
 
 	foreach $line (keys %server_list) {
