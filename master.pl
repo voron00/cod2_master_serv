@@ -12,7 +12,7 @@ my $auth_port   = 20700;
 my $msg;
 my $maxlen = 1024;
 
-my $debug         = 0;
+my $debug         = 1;
 my $guid_hash_key = '';    # Change this if you want guids
 
 my %server_list;

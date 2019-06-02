@@ -9,3 +9,8 @@ services:
     ports:
       - 20700:20700/udp
       - 20710:20710/udp
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "1"
