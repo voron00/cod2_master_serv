@@ -108,10 +108,12 @@ sub master_server {
 
 	while (my $adr = recv($master_socket, $msg, $maxlen, 0)) {
 		my ($port, $ipaddr) = sockaddr_in($adr);
-		my $host = gethostbyaddr($ipaddr, AF_INET);
 		my $ip = inet_ntoa($ipaddr);
 
 		if ($debug) {
+			my $host = gethostbyaddr($ipaddr, AF_INET);
+
+			unless (defined($host)) { $host = 'undefined'; }
 			print "Master Server: client $ip:$port ($host) said $msg\n";
 		}
 
@@ -126,6 +128,7 @@ sub master_server {
 		}
 		elsif ($msg =~ /^\xFF\xFF\xFF\xFFstatusResponse\s(.*)$/) {
 			&update_server_info("$ip:$port", $1);
+			&get_challenge($ip, $port);
 		}
 		elsif ($msg =~ /^\xFF\xFF\xFF\xFFheartbeat\sflatline$/) {
 			&remove_server("$ip:$port");
@@ -138,10 +141,12 @@ sub auth_server {
 
 	while (my $adr = recv($auth_socket, $msg, $maxlen, 0)) {
 		my ($port, $ipaddr) = sockaddr_in($adr);
-		my $host = gethostbyaddr($ipaddr, AF_INET);
 		my $ip = inet_ntoa($ipaddr);
 
 		if ($debug) {
+			my $host = gethostbyaddr($ipaddr, AF_INET);
+
+			unless (defined($host)) { $host = 'undefined'; }
 			print "Authentication Server: client $ip:$port ($host) said $msg\n";
 		}
 
@@ -198,34 +203,31 @@ sub add_server {
 	if ($debug) { print "Add: $server\n"; }
 }
 
-sub update_server_info {
-	my $server   = shift;
-	my $msg      = shift;
-	my $protocol = '0';
+sub get_challenge {
+	my $server = shift;
+	my $port   = shift;
 
 	srand;
 
 	my $random    = int(-1000000000 + rand(250000000));
 	my $challenge = "\xFF\xFF\xFF\xFFgetchallenge $random";
 
+	my $d_ip = inet_aton($server);
+	my $portaddr = sockaddr_in($port, $d_ip);
+
+	send($master_socket, $challenge, 0, $portaddr) == length($challenge) or die("Cannot send message");
+
+	if ($debug) { print "Challenge: $server:$port $random\n"; }
+}
+
+sub update_server_info {
+	my $server   = shift;
+	my $msg      = shift;
+	my $protocol = '0';
+
 	if (defined($server_list{$server})) {
 		if ($msg =~ /\\protocol\\(\d+)\\/) { $protocol = $1 }
 		$server_list{$server} = time . ";" . $protocol;
-	}
-
-	my $sr;
-	my $pt;
-
-	if ($server =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(\d{1,5})$/) {
-		$sr = $1;
-		$pt = $2;
-
-		my $d_ip = inet_aton($sr);
-		my $portaddr = sockaddr_in($pt, $d_ip);
-
-		send($master_socket, $challenge, 0, $portaddr) == length($challenge) or die("Cannot send message");
-
-		if ($debug) { print "Update: challenge: $random\n"; }
 	}
 
 	if ($debug) { print "Update: $server Protocol: $protocol\n"; }
