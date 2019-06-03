@@ -5,6 +5,7 @@ use warnings;
 use diagnostics;
 use threads;
 use IO::Socket;
+use Digest::MD5;
 
 my $master_port = 20710;
 my $auth_port   = 20700;
@@ -83,7 +84,7 @@ sub get_protocol {
 sub request_server_info {
 	my $serverport = shift;
 	my $message    = '';
-	my $info       = ("\xFF\xFF\xFF\xFFgetinfo");
+	my $info       = "\xFF\xFF\xFF\xFFgetinfo";
 
 	my $server;
 	my $port;
@@ -148,14 +149,26 @@ sub auth_server {
 			$auth_list{$ip} = $2;
 		}
 		elsif ($msg =~ /^\xFF\xFF\xFF\xFFgetIpAuthorize\s(-?\d+)\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s(\w+)\s(\d)$/) {
-			my $guid = 0;
+			my $guid   = 0;
+			my $pbguid = 0;
 
 			if (length($guid_hash_key) and defined($auth_list{$2})) {
-				$guid = xor_encode_int($auth_list{$2}, $guid_hash_key);
-				$guid = substr($guid, -6);
+				my $md5;
+
+				$md5 = Digest::MD5->new;
+				$md5->add($auth_list{$2}, $guid_hash_key);
+				$guid = unpack('I', $md5->digest);
+
+				if (length($guid) > 6) { $guid = substr($guid, -6); }
+
+				$md5 = Digest::MD5->new;
+				$md5->add($auth_list{$2}, $guid_hash_key);
+				$pbguid = $md5->hexdigest;
+
+				if ($debug) { print "Authorize: GUID: $guid PBGUID: $pbguid\n"; }
 			}
 
-			my $data = "\xFF\xFF\xFF\xFFipAuthorize $1 accept ACCEPT $guid";
+			my $data = "\xFF\xFF\xFF\xFFipAuthorize $1 accept KEY_IS_GOOD $guid $pbguid";
 			send($auth_socket, $data, 0, $adr) == length($data) or die("Socket error: $!");
 		}
 	}
@@ -180,6 +193,7 @@ sub build_server_list {
 
 sub add_server {
 	my $server = shift;
+
 	if (!defined($server_list{$server})) { $server_list{$server} = time . ";0"; }
 	if ($debug) { print "Add: $server\n"; }
 }
@@ -189,9 +203,29 @@ sub update_server_info {
 	my $msg      = shift;
 	my $protocol = '0';
 
+	srand;
+
+	my $random    = int(-1000000000 + rand(250000000));
+	my $challenge = "\xFF\xFF\xFF\xFFgetchallenge $random";
+
 	if (defined($server_list{$server})) {
 		if ($msg =~ /\\protocol\\(\d+)\\/) { $protocol = $1 }
 		$server_list{$server} = time . ";" . $protocol;
+	}
+
+	my $sr;
+	my $pt;
+
+	if ($server =~ /^(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\:(\d{1,5})$/) {
+		$sr = $1;
+		$pt = $2;
+
+		my $d_ip = inet_aton($sr);
+		my $portaddr = sockaddr_in($pt, $d_ip);
+
+		send($master_socket, $challenge, 0, $portaddr) == length($challenge) or die("Cannot send message");
+
+		if ($debug) { print "Update: challenge: $random\n"; }
 	}
 
 	if ($debug) { print "Update: $server Protocol: $protocol\n"; }
@@ -199,6 +233,7 @@ sub update_server_info {
 
 sub remove_server {
 	my $server = shift;
+
 	if (defined($server_list{$server})) { delete($server_list{$server}); }
 	if ($debug) { print "Remove: $server\n"; }
 }
@@ -242,17 +277,4 @@ sub send_server_list {
 
 	$data = $data . $eof;
 	send($master_socket, $data, 0, $adr) == length($data) or die("Socket error: $!");
-}
-
-sub xor_encode_int {
-	my ($str, $key) = @_;
-	my $enc_str = '';
-
-	for my $char (split //, $str) {
-		my $decode = chop $key;
-		$enc_str .= int(ord($char) ^ ord($decode));
-		$key = $decode . $key;
-	}
-
-	return $enc_str;
 }
