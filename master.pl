@@ -5,6 +5,7 @@ use warnings;
 use diagnostics;
 use threads;
 use IO::Socket;
+use Digest::MD5;
 
 my $master_port = 20710;
 my $auth_port   = 20700;
@@ -83,7 +84,7 @@ sub get_protocol {
 sub request_server_info {
 	my $serverport = shift;
 	my $message    = '';
-	my $info       = ("\xFF\xFF\xFF\xFFgetinfo");
+	my $info       = "\xFF\xFF\xFF\xFFgetinfo";
 
 	my $server;
 	my $port;
@@ -107,10 +108,12 @@ sub master_server {
 
 	while (my $adr = recv($master_socket, $msg, $maxlen, 0)) {
 		my ($port, $ipaddr) = sockaddr_in($adr);
-		my $host = gethostbyaddr($ipaddr, AF_INET);
 		my $ip = inet_ntoa($ipaddr);
 
 		if ($debug) {
+			my $host = gethostbyaddr($ipaddr, AF_INET);
+
+			unless (defined($host)) { $host = 'undefined'; }
 			print "Master Server: client $ip:$port ($host) said $msg\n";
 		}
 
@@ -125,6 +128,7 @@ sub master_server {
 		}
 		elsif ($msg =~ /^\xFF\xFF\xFF\xFFstatusResponse\s(.*)$/) {
 			&update_server_info("$ip:$port", $1);
+			&get_challenge($ip, $port);
 		}
 		elsif ($msg =~ /^\xFF\xFF\xFF\xFFheartbeat\sflatline$/) {
 			&remove_server("$ip:$port");
@@ -137,10 +141,12 @@ sub auth_server {
 
 	while (my $adr = recv($auth_socket, $msg, $maxlen, 0)) {
 		my ($port, $ipaddr) = sockaddr_in($adr);
-		my $host = gethostbyaddr($ipaddr, AF_INET);
 		my $ip = inet_ntoa($ipaddr);
 
 		if ($debug) {
+			my $host = gethostbyaddr($ipaddr, AF_INET);
+
+			unless (defined($host)) { $host = 'undefined'; }
 			print "Authentication Server: client $ip:$port ($host) said $msg\n";
 		}
 
@@ -148,14 +154,26 @@ sub auth_server {
 			$auth_list{$ip} = $2;
 		}
 		elsif ($msg =~ /^\xFF\xFF\xFF\xFFgetIpAuthorize\s(-?\d+)\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s(\w+)\s(\d)$/) {
-			my $guid = 0;
+			my $guid   = 0;
+			my $pbguid = 0;
 
 			if (length($guid_hash_key) and defined($auth_list{$2})) {
-				$guid = xor_encode_int($auth_list{$2}, $guid_hash_key);
-				$guid = substr($guid, -6);
+				my $md5;
+
+				$md5 = Digest::MD5->new;
+				$md5->add($auth_list{$2}, $guid_hash_key);
+				$guid = unpack('I', $md5->digest);
+
+				if (length($guid) > 6) { $guid = substr($guid, -6); }
+
+				$md5 = Digest::MD5->new;
+				$md5->add($auth_list{$2}, $guid_hash_key);
+				$pbguid = $md5->hexdigest;
+
+				if ($debug) { print "Authorize: GUID: $guid PBGUID: $pbguid\n"; }
 			}
 
-			my $data = "\xFF\xFF\xFF\xFFipAuthorize $1 accept ACCEPT $guid";
+			my $data = "\xFF\xFF\xFF\xFFipAuthorize $1 accept KEY_IS_GOOD $guid $pbguid";
 			send($auth_socket, $data, 0, $adr) == length($data) or die("Socket error: $!");
 		}
 	}
@@ -180,8 +198,26 @@ sub build_server_list {
 
 sub add_server {
 	my $server = shift;
+
 	if (!defined($server_list{$server})) { $server_list{$server} = time . ";0"; }
 	if ($debug) { print "Add: $server\n"; }
+}
+
+sub get_challenge {
+	my $server = shift;
+	my $port   = shift;
+
+	srand;
+
+	my $random    = int(-1000000000 + rand(250000000));
+	my $challenge = "\xFF\xFF\xFF\xFFgetchallenge $random";
+
+	my $d_ip = inet_aton($server);
+	my $portaddr = sockaddr_in($port, $d_ip);
+
+	send($master_socket, $challenge, 0, $portaddr) == length($challenge) or die("Cannot send message");
+
+	if ($debug) { print "Challenge: $server:$port $random\n"; }
 }
 
 sub update_server_info {
@@ -199,6 +235,7 @@ sub update_server_info {
 
 sub remove_server {
 	my $server = shift;
+
 	if (defined($server_list{$server})) { delete($server_list{$server}); }
 	if ($debug) { print "Remove: $server\n"; }
 }
@@ -242,17 +279,4 @@ sub send_server_list {
 
 	$data = $data . $eof;
 	send($master_socket, $data, 0, $adr) == length($data) or die("Socket error: $!");
-}
-
-sub xor_encode_int {
-	my ($str, $key) = @_;
-	my $enc_str = '';
-
-	for my $char (split //, $str) {
-		my $decode = chop $key;
-		$enc_str .= int(ord($char) ^ ord($decode));
-		$key = $decode . $key;
-	}
-
-	return $enc_str;
 }
