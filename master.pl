@@ -153,7 +153,7 @@ sub auth_server {
 		if ($msg =~ /^\xFF\xFF\xFF\xFFgetKeyAuthorize\s(\d)\s(\w+)$/) {
 			$auth_list{$ip} = $2;
 		}
-		elsif ($msg =~ /^\xFF\xFF\xFF\xFFgetIpAuthorize\s(-?\d+)\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s(\w+)\s(\d)$/) {
+		elsif ($msg =~ /^\xFF\xFF\xFF\xFFgetIpAuthorize\s(-?\d+)\s(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\s(\w+)\s(\d)(\sPB\s(\w+))?$/) {
 			my $guid   = 0;
 			my $pbguid = 0;
 
