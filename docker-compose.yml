@@ -6,6 +6,13 @@ services:
     container_name: cod2-master-serv
     restart: unless-stopped
     tty: true
+    environment:
+      DEBUG: "1"
     ports:
       - 20700:20700/udp
       - 20710:20710/udp
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "1"
