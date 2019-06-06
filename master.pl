@@ -18,13 +18,13 @@ my $debug         = 0;
 my $guid_hash_key = '';    # Change this if you want guids
 
 # set vars from env
-if(defined $ENV{'DEBUG'}) {
+if (defined $ENV{'DEBUG'}) {
 	$debug = $ENV{'DEBUG'};
 }
-if(defined $ENV{'GUID_HASH_KEY'}) {
+
+if (defined $ENV{'GUID_HASH_KEY'}) {
 	$guid_hash_key = $ENV{'GUID_HASH_KEY'};
 }
-
 
 my %server_list;
 my %auth_list;
