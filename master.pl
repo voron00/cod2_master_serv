@@ -207,8 +207,6 @@ sub get_challenge {
 	my $server = shift;
 	my $port   = shift;
 
-	srand;
-
 	my $random    = int(-1000000000 + rand(250000000));
 	my $challenge = "\xFF\xFF\xFF\xFFgetchallenge $random";
 
