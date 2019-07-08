@@ -120,12 +120,9 @@ sub master_server {
 		my ($port, $ipaddr) = sockaddr_in($adr);
 		my $ip = inet_ntoa($ipaddr);
 
-		if ($debug) {
-			my $host = gethostbyaddr($ipaddr, AF_INET);
-
-			unless (defined($host)) { $host = 'undefined'; }
-			print "Master Server: client $ip:$port ($host) said $msg\n";
-		}
+		my $host = gethostbyaddr($ipaddr, AF_INET);
+		unless (defined($host)) { $host = 'undefined'; }
+		print "Master Server: client $ip:$port ($host) said $msg\n";
 
 		if ($msg =~ /^\xFF\xFF\xFF\xFFgetservers\s(\d+)\s?(\w+)?\s?(\w+)?$/) {
 			&send_server_list($adr, $1);
@@ -153,12 +150,9 @@ sub auth_server {
 		my ($port, $ipaddr) = sockaddr_in($adr);
 		my $ip = inet_ntoa($ipaddr);
 
-		if ($debug) {
-			my $host = gethostbyaddr($ipaddr, AF_INET);
-
-			unless (defined($host)) { $host = 'undefined'; }
-			print "Authentication Server: client $ip:$port ($host) said $msg\n";
-		}
+		my $host = gethostbyaddr($ipaddr, AF_INET);
+		unless (defined($host)) { $host = 'undefined'; }
+		print "Authentication Server: client $ip:$port ($host) said $msg\n";
 
 		if ($msg =~ /^\xFF\xFF\xFF\xFFgetKeyAuthorize\s(\d)\s(\w+)(\sPB\s(\w+))?$/) {
 			$auth_list{$ip} = $2;
